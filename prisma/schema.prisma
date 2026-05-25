@@ -1,0 +1,83 @@
+// prisma/schema.prisma
+// Crowdfunding Platform — Data Model
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum DonationStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// ─── Models ───────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(USER)
+  createdAt    DateTime   @default(now())
+
+  campaigns    Campaign[]
+
+  @@map("users")
+}
+
+model Campaign {
+  id           String         @id @default(cuid())
+  title        String
+  description  String         @db.Text
+  targetAmount Decimal        @db.Decimal(12, 2)
+  raisedAmount Decimal        @default(0) @db.Decimal(12, 2)
+  imageUrl     String?
+  status       CampaignStatus @default(ACTIVE)
+  creatorId    String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  creator      User           @relation(fields: [creatorId], references: [id])
+  donations    Donation[]
+
+  @@index([status])
+  @@index([creatorId])
+  @@map("campaigns")
+}
+
+model Donation {
+  id          String         @id @default(cuid())
+  amount      Decimal        @db.Decimal(10, 2)
+  /// Razorpay order ID stored initially; updated to payment ID on capture
+  paymentId   String         @unique
+  status      DonationStatus @default(PENDING)
+  donorEmail  String
+  donorName   String
+  campaignId  String
+  createdAt   DateTime       @default(now())
+
+  campaign    Campaign       @relation(fields: [campaignId], references: [id])
+
+  @@index([campaignId])
+  @@index([paymentId])
+  @@index([status])
+  @@map("donations")
+}
