@@ -44,15 +44,16 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Copy prisma schema + migrations so `prisma db push` works at runtime
+# Copy prisma schema + generated client
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
-# Prisma CLI for runtime migrations
+# Copy full prisma CLI from deps (includes wasm files)
 COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
 COPY --from=deps /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=deps /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+
 
 RUN chown -R nextjs:nodejs /app
 USER nextjs

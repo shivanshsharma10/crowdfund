@@ -63,10 +63,11 @@ services:
     command: >
         sh -c "
           echo '⏳ Waiting for database...' &&
-          npx --yes prisma db push --accept-data-loss &&
+          node /app/node_modules/prisma/build/index.js db push --accept-data-loss &&
           echo '✅ Database schema synced' &&
           node server.js
         "
+
 
 volumes:
   postgres_data:
