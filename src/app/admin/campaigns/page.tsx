@@ -7,9 +7,13 @@ import { Plus, Pencil, Eye } from "lucide-react";
 import { DeleteCampaignButton } from "@/components/shared/DeleteCampaignButton";
 import { CampaignStatusBadge } from "@/components/shared/CampaignStatusBadge";
 
-export const dynamic = "force-dynamic";
+
+
+export const dynamic = 'force-dynamic';
+
 
 async function getCampaigns() {
+
   return prisma.campaign.findMany({
     orderBy: { createdAt: "desc" },
     include: {

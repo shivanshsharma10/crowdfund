@@ -5,9 +5,13 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { TrendingUp, Megaphone, Heart, DollarSign, ArrowRight, Plus } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+
+export const dynamic = 'force-dynamic';
+
+
 
 async function getDashboardData() {
+
   const [
     totalCampaigns,
     activeCampaigns,

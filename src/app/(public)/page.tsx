@@ -1,7 +1,14 @@
 // src/app/(public)/page.tsx
 
+
+
+
+export const dynamic = 'force-dynamic';
+
 import Link from "next/link";
+
 import { prisma } from "@/lib/prisma";
+
 import { formatCurrency, calcProgress, truncate } from "@/lib/utils";
 import { ArrowRight, Users, Target, Zap } from "lucide-react";
 

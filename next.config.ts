@@ -14,13 +14,12 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Strict mode
   reactStrictMode: true,
 
-  // Silence Prisma edge runtime warning in middleware build
-  experimental: {
-    serverComponentsExternalPackages: ["@prisma/client", "prisma"],
-  },
+  // Fixed: moved out of experimental
+  serverExternalPackages: ["@prisma/client", "prisma"],
 };
+
+
 
 export default nextConfig;
