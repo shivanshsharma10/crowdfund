@@ -56,7 +56,7 @@ services:
       NEXT_PUBLIC_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
       NODE_ENV: production
     ports:
-      - "3000:3000"
+      - "3001:3000"
     networks:
       - crowdfund_net
     # Run prisma db push to sync schema on every startup, then start the app
