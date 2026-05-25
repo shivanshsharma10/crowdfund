@@ -43,7 +43,6 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copy standalone build output
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
 
 # Copy prisma schema + migrations so `prisma db push` works at runtime
 COPY --from=builder /app/prisma ./prisma
