@@ -51,9 +51,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
+const USD_TO_INR = 84; // ← update this rate periodically
+
 async function handlePaymentSucceeded(paymentIntent: { id: string; amount: number }): Promise<NextResponse> {
   const { id: paymentIntentId, amount: amountCents } = paymentIntent;
   const amountInUsd = amountCents / 100;
+  const amountInInr = Math.round(amountInUsd * USD_TO_INR); // convert before storing
 
   const donation = await prisma.donation.findUnique({
     where: { paymentId: paymentIntentId },
@@ -71,19 +74,23 @@ async function handlePaymentSucceeded(paymentIntent: { id: string; amount: numbe
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Store the INR equivalent in donation.amount for consistent display
       await tx.donation.update({
         where: { id: donation.id },
-        data: { status: DonationStatus.SUCCESS },
+        data: {
+          status: DonationStatus.SUCCESS,
+          amount: amountInInr,        // ← store INR, not USD
+        },
       });
 
       await tx.campaign.update({
         where: { id: donation.campaignId },
-        data: { raisedAmount: { increment: amountInUsd } },
+        data: { raisedAmount: { increment: amountInInr } }, // ← increment by INR
       });
     });
 
     console.info(
-      `[Stripe Webhook] ✅ Donation ${donation.id} captured. Campaign ${donation.campaignId} +$${amountInUsd}`
+      `[Stripe Webhook] ✅ Donation ${donation.id}: $${amountInUsd} = ₹${amountInInr} → campaign ${donation.campaignId}`
     );
     return json({ received: true, handled: true });
   } catch (error) {

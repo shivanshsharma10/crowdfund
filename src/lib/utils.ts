@@ -7,38 +7,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// USD to INR approximate rate (update periodically or fetch live)
-export const USD_TO_INR = 84;
-
-// Format amount in INR
-export function formatCurrency(amount: number | string, currency: "INR" | "USD" = "INR"): string {
+// All amounts in DB are stored in INR — format directly, no conversion needed
+export function formatCurrency(amount: number | string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
-  if (currency === "USD") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(num);
-  }
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(num);
+  if (isNaN(num)) return "₹0";
+  // Indian grouping: 1,00,000
+  const str = Math.round(num).toString();
+  const lastThree = str.slice(-3);
+  const rest = str.slice(0, -3);
+  const formatted = rest
+    ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + lastThree
+    : lastThree;
+  return "₹" + formatted;
 }
 
-// Convert USD donation amount to INR for display
-export function usdToInr(usd: number): number {
-  return Math.round(usd * USD_TO_INR);
-}
-
-// Format a USD amount as its INR equivalent
-export function formatUsdAsInr(usd: number | string): string {
-  const num = typeof usd === "string" ? parseFloat(usd) : usd;
-  return formatCurrency(usdToInr(num), "INR");
-}
-
-// Calculate campaign progress percentage (capped at 100)
+// Progress is now apples-to-apples: raised(INR) vs target(INR)
 export function calcProgress(raised: number | string, target: number | string): number {
   const r = typeof raised === "string" ? parseFloat(raised) : raised;
   const t = typeof target === "string" ? parseFloat(target) : target;
@@ -46,23 +29,18 @@ export function calcProgress(raised: number | string, target: number | string): 
   return Math.min(Math.round((r / t) * 100), 100);
 }
 
-// Truncate text with ellipsis
 export function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength).trimEnd() + "…";
 }
 
-// Format relative date
 export function formatDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(d);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun",
+                  "Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-// Slugify text for display
 export function formatStatus(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 }
