@@ -74,7 +74,7 @@ model Donation {
   paymentId   String          @unique
   status      DonationStatus  @default(PENDING)
   gateway     PaymentGateway  @default(STRIPE)
-  currency    String
+  currency    String          @default("USD")
   donorEmail  String
   donorName   String
   campaignId  String
