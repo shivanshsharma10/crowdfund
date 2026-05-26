@@ -2,7 +2,7 @@
 
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatUsdAsInr, calcProgress, formatDate } from "@/lib/utils";
+import { formatCurrency, calcProgress, formatDate } from "@/lib/utils";
 import { DonateWidget } from "@/components/shared/DonateWidget";
 import { Users, Calendar, CheckCircle2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -40,7 +40,6 @@ async function getCampaign(id: string) {
           id: true,
           donorName: true,
           amount: true,
-          currency: true,
           createdAt: true,
         },
       },
@@ -164,7 +163,7 @@ export default async function CampaignPage({ params }: Params) {
                       </div>
                     </div>
                     <div className="text-sm font-bold text-emerald-700">
-                      {formatUsdAsInr(Number(donation.amount))}
+                      {formatCurrency(Number(donation.amount))}
                     </div>
                   </div>
                 ))}
@@ -180,10 +179,10 @@ export default async function CampaignPage({ params }: Params) {
             <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 mb-4">
               <div className="mb-1">
                 <span className="text-2xl font-bold text-stone-900 font-display">
-                  {formatUsdAsInr(Number(campaign.raisedAmount))}
+                  {formatCurrency(Number(campaign.raisedAmount))}
                 </span>
                 <span className="text-sm text-stone-400 ml-2">
-                  raised of {formatUsdAsInr(Number(campaign.targetAmount))}
+                  raised of {formatCurrency(Number(campaign.targetAmount))}
                 </span>
               </div>
 

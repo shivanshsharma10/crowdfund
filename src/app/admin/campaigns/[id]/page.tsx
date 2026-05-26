@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { CampaignForm } from "@/components/shared/CampaignForm";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, calcProgress, formatDate } from "@/lib/utils";
 
 type Params = { params: Promise<{ id: string }> };
 

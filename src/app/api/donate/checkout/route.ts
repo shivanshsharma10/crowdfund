@@ -81,8 +81,6 @@ export async function POST(request: NextRequest) {
         donorEmail: donorEmail.trim().toLowerCase(),
         campaignId,
         status: "PENDING",
-        gateway: "STRIPE",
-        currency: "USD",
       },
     });
 

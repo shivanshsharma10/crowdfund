@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { formatUsdAsInr, calcProgress } from "@/lib/utils";
+import { formatCurrency, calcProgress } from "@/lib/utils";
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
@@ -63,7 +63,7 @@ export default async function HomePage() {
                     />
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="font-semibold text-stone-900">{formatUsdAsInr(Number(campaign.raisedAmount))}</span>
+                    <span className="font-semibold text-stone-900">{formatCurrency(Number(campaign.raisedAmount))}</span>
                     <span className="text-stone-400">{progress}% funded</span>
                   </div>
                   <div className="flex items-center gap-1 mt-2 text-xs text-stone-400">
