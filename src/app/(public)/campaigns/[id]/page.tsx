@@ -2,7 +2,7 @@
 
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, calcProgress, formatDate } from "@/lib/utils";
+import { formatUsdAsInr, calcProgress, formatDate } from "@/lib/utils";
 import { DonateWidget } from "@/components/shared/DonateWidget";
 import { Users, Calendar, CheckCircle2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -13,15 +13,19 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
-  const campaign = await prisma.campaign.findUnique({
-    where: { id },
-    select: { title: true, description: true },
-  });
-  if (!campaign) return { title: "Campaign Not Found" };
-  return {
-    title: campaign.title,
-    description: campaign.description.slice(0, 160),
-  };
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id },
+      select: { title: true, description: true },
+    });
+    if (!campaign) return { title: "Campaign Not Found" };
+    return {
+      title: campaign.title,
+      description: campaign.description.slice(0, 160),
+    };
+  } catch {
+    return { title: "Fundwise", description: "Support a campaign" };
+  }
 }
 
 async function getCampaign(id: string) {
@@ -36,6 +40,7 @@ async function getCampaign(id: string) {
           id: true,
           donorName: true,
           amount: true,
+          currency: true,
           createdAt: true,
         },
       },
@@ -159,7 +164,7 @@ export default async function CampaignPage({ params }: Params) {
                       </div>
                     </div>
                     <div className="text-sm font-bold text-emerald-700">
-                      {formatCurrency(Number(donation.amount))}
+                      {formatUsdAsInr(Number(donation.amount))}
                     </div>
                   </div>
                 ))}
@@ -175,10 +180,10 @@ export default async function CampaignPage({ params }: Params) {
             <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 mb-4">
               <div className="mb-1">
                 <span className="text-2xl font-bold text-stone-900 font-display">
-                  {formatCurrency(Number(campaign.raisedAmount))}
+                  {formatUsdAsInr(Number(campaign.raisedAmount))}
                 </span>
                 <span className="text-sm text-stone-400 ml-2">
-                  raised of {formatCurrency(Number(campaign.targetAmount))}
+                  raised of {formatUsdAsInr(Number(campaign.targetAmount))}
                 </span>
               </div>
 
@@ -216,7 +221,7 @@ export default async function CampaignPage({ params }: Params) {
             {/* Trust indicators */}
             <div className="flex items-center gap-2 text-xs text-stone-400 justify-center">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              Secured by Razorpay · 100% to campaign
+              Secured by Stripe · 100% to campaign
             </div>
           </div>
         </div>
