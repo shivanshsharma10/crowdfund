@@ -7,14 +7,35 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Format amount in Indian Rupees
-export function formatCurrency(amount: number | string): string {
+// USD to INR approximate rate (update periodically or fetch live)
+export const USD_TO_INR = 84;
+
+// Format amount in INR
+export function formatCurrency(amount: number | string, currency: "INR" | "USD" = "INR"): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (currency === "USD") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(num);
+  }
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(num);
+}
+
+// Convert USD donation amount to INR for display
+export function usdToInr(usd: number): number {
+  return Math.round(usd * USD_TO_INR);
+}
+
+// Format a USD amount as its INR equivalent
+export function formatUsdAsInr(usd: number | string): string {
+  const num = typeof usd === "string" ? parseFloat(usd) : usd;
+  return formatCurrency(usdToInr(num), "INR");
 }
 
 // Calculate campaign progress percentage (capped at 100)
