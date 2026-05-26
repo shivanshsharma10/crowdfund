@@ -7,6 +7,7 @@ import { DonateWidget } from "@/components/shared/DonateWidget";
 import { Users, Calendar, CheckCircle2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
+export const dynamic = 'force-dynamic'
 
 type Params = { params: Promise<{ id: string }> };
 
