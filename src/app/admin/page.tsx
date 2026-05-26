@@ -1,17 +1,13 @@
 // src/app/admin/page.tsx
 
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatUsdAsInr, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { TrendingUp, Megaphone, Heart, DollarSign, ArrowRight, Plus } from "lucide-react";
 
-
 export const dynamic = 'force-dynamic';
 
-
-
 async function getDashboardData() {
-
   const [
     totalCampaigns,
     activeCampaigns,
@@ -62,7 +58,7 @@ export default async function AdminDashboard() {
   const stats = [
     {
       label: "Total Raised",
-      value: formatCurrency(data.totalRaised),
+      value: formatUsdAsInr(data.totalRaised),
       icon: <DollarSign className="w-5 h-5" />,
       color: "text-emerald-600",
       bg: "bg-emerald-50",
@@ -165,7 +161,7 @@ export default async function AdminDashboard() {
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-bold text-emerald-700">
-                      {formatCurrency(Number(donation.amount))}
+                      {formatUsdAsInr(Number(donation.amount))}
                     </div>
                     <div className="text-xs text-stone-400">
                       {formatDate(donation.createdAt)}
@@ -229,8 +225,8 @@ export default async function AdminDashboard() {
                       </span>
                     </div>
                     <div className="text-xs text-stone-400 mt-1">
-                      {formatCurrency(Number(campaign.raisedAmount))} of{" "}
-                      {formatCurrency(Number(campaign.targetAmount))}
+                      {formatUsdAsInr(Number(campaign.raisedAmount))} of{" "}
+                      {formatUsdAsInr(Number(campaign.targetAmount))}
                     </div>
                   </div>
                 );
