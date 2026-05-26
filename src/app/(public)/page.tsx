@@ -13,15 +13,19 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
-  const campaign = await prisma.campaign.findUnique({
-    where: { id },
-    select: { title: true, description: true },
-  });
-  if (!campaign) return { title: "Campaign Not Found" };
-  return {
-    title: campaign.title,
-    description: campaign.description.slice(0, 160),
-  };
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id },
+      select: { title: true, description: true },
+    });
+    if (!campaign) return { title: "Campaign Not Found" };
+    return {
+      title: campaign.title,
+      description: campaign.description.slice(0, 160),
+    };
+  } catch {
+    return { title: "Fundwise", description: "Support a campaign" };
+  }
 }
 
 async function getCampaign(id: string) {
