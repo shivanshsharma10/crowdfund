@@ -19,12 +19,19 @@ export default async function HomePage() {
     campaigns = [];
   }
 
-  return (
+ return (
     <div className="max-w-5xl mx-auto px-6 py-10">
-      <div className="mb-10">
-        <h1 className="text-4xl font-bold text-stone-900 mb-2">Active Campaigns</h1>
-        <p className="text-stone-500">Support a cause you care about.</p>
+      {/* Hero */}
+      <div className="text-center py-16 mb-10">
+        <h1 className="text-5xl font-bold text-stone-900 mb-4">
+          Fund What <span className="text-emerald-600">Matters</span>
+        </h1>
+        <p className="text-xl text-stone-500 max-w-xl mx-auto">
+          Support campaigns that make a real difference. 100% goes to the cause.
+        </p>
       </div>
+
+      <h2 className="text-2xl font-bold text-stone-900 mb-6">Active Campaigns</h2>
 
       {campaigns.length === 0 ? (
         <div className="text-center py-20 text-stone-400">
@@ -69,6 +76,27 @@ export default async function HomePage() {
           })}
         </div>
       )}
+
+      {/* How It Works */}
+      <div id="how-it-works" className="mt-24 mb-10">
+        <h2 className="text-3xl font-bold text-stone-900 text-center mb-12">How It Works</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {[
+            { step: "1", title: "Browse Campaigns", desc: "Explore active campaigns and find a cause you care about." },
+            { step: "2", title: "Make a Donation", desc: "Donate securely via Stripe. Any amount helps." },
+            { step: "3", title: "Track Impact", desc: "See the campaign progress and your contribution in real time." },
+          ].map((item) => (
+            <div key={item.step} className="text-center p-6 rounded-2xl border border-stone-200 bg-white">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 font-bold text-lg flex items-center justify-center mx-auto mb-4">
+                {item.step}
+              </div>
+              <h3 className="font-semibold text-stone-900 mb-2">{item.title}</h3>
+              <p className="text-sm text-stone-500">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
+  
 }
