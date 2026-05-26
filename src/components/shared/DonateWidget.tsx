@@ -120,6 +120,13 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
 
       const paymentElement = elements.create("payment", {
         layout: "tabs",
+        fields: {
+          billingDetails: {
+            name: "auto",
+            email: "auto",
+            address: "auto",
+          },
+        },
         defaultValues: {
           billingDetails: { name: donorName, email: donorEmail },
         },

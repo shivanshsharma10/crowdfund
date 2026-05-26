@@ -56,6 +56,14 @@ export async function POST(request: NextRequest) {
       amount: amountCents,
       currency: "usd",
       receipt_email: donorEmail.trim().toLowerCase(),
+      // Required for Indian Stripe accounts processing export transactions
+      shipping: {
+        name: donorName.trim(),
+        address: {
+          line1: "International",
+          country: "US",
+        },
+      },
       metadata: {
         campaignId,
         campaignTitle: campaign.title,
