@@ -1,145 +1,164 @@
 "use client";
 // src/components/shared/DonateWidget.tsx
-// Client component — opens Razorpay checkout overlay
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Heart, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 declare global {
   interface Window {
-    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
+    Stripe: (key: string) => StripeInstance;
   }
 }
 
-interface RazorpayOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  prefill?: { name?: string; email?: string };
-  theme?: { color?: string };
-  handler: (response: RazorpayResponse) => void;
-  modal?: { ondismiss?: () => void };
+interface StripeInstance {
+  elements(options: object): StripeElements;
+  confirmPayment(options: object): Promise<{ error?: { message: string } }>;
+}
+interface StripeElements {
+  create(type: string, options?: object): StripeElement;
+  submit(): Promise<{ error?: { message: string } }>;
+}
+interface StripeElement {
+  mount(selector: string): void;
+  destroy(): void;
 }
 
-interface RazorpayResponse {
-  razorpay_payment_id: string;
-  razorpay_order_id: string;
-  razorpay_signature: string;
-}
+type Step = "form" | "stripe-elements" | "loading" | "success" | "error";
 
-interface RazorpayInstance {
-  open(): void;
-}
-
-const PRESET_AMOUNTS = [500, 1000, 2500, 5000];
+const USD_PRESETS = [5, 10, 25, 50];
 
 interface DonateWidgetProps {
   campaignId: string;
   campaignTitle: string;
 }
 
-type Step = "form" | "loading" | "success" | "error";
-
 export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
   const [step, setStep] = useState<Step>("form");
-  const [amount, setAmount] = useState<string>("");
-  const [customAmount, setCustomAmount] = useState<string>("");
+  const [amount, setAmount] = useState("");
+  const [customAmount, setCustomAmount] = useState("");
   const [donorName, setDonorName] = useState("");
   const [donorEmail, setDonorEmail] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [stripeLoading, setStripeLoading] = useState(false);
+
+  const stripeRef = useRef<StripeInstance | null>(null);
+  const elementsRef = useRef<StripeElements | null>(null);
+  const paymentElementRef = useRef<StripeElement | null>(null);
 
   const selectedAmount = amount || customAmount;
 
-  // Load Razorpay script lazily
-  const loadRazorpay = useCallback((): Promise<void> => {
+  useEffect(() => {
+    return () => {
+      paymentElementRef.current?.destroy();
+      paymentElementRef.current = null;
+    };
+  }, []);
+
+  const loadStripe = useCallback((): Promise<void> => {
     return new Promise((resolve, reject) => {
-      if (window.Razorpay) return resolve();
+      if (typeof window.Stripe === "function") return resolve();
       const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.src = "https://js.stripe.com/v3/";
       script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
+      script.onerror = () => reject(new Error("Failed to load Stripe SDK"));
       document.head.appendChild(script);
     });
   }, []);
 
-  const handleDonate = async () => {
-    // ── Client-side validation ───────────────────────────────────
+  const validate = () => {
     const amountNum = parseFloat(selectedAmount);
     if (!selectedAmount || isNaN(amountNum) || amountNum < 1) {
-      setErrorMsg("Please enter a valid amount (minimum ₹1)");
-      return;
+      setErrorMsg("Please enter a valid amount (minimum $1)");
+      return false;
     }
     if (!donorName.trim()) {
       setErrorMsg("Please enter your name");
-      return;
+      return false;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail)) {
       setErrorMsg("Please enter a valid email address");
-      return;
+      return false;
     }
+    return true;
+  };
 
+  // ── Step 1: create PaymentIntent, mount Stripe Element ────────
+  const handleStripeInit = async () => {
+    if (!validate()) return;
     setErrorMsg("");
     setStep("loading");
 
     try {
-      // ── 1. Load Razorpay SDK ──────────────────────────────────
-      await loadRazorpay();
+      await loadStripe();
 
-      // ── 2. Create order on backend ────────────────────────────
       const res = await fetch("/api/donate/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           campaignId,
-          amount: amountNum,
+          amount: parseFloat(selectedAmount),
           donorName: donorName.trim(),
           donorEmail: donorEmail.trim().toLowerCase(),
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Failed to initialize payment");
-      }
+      if (!res.ok) throw new Error(data.error ?? "Failed to initialize payment");
 
-      // ── 3. Open Razorpay checkout overlay ─────────────────────
-      const rzp = new window.Razorpay({
-        key: data.keyId,
-        amount: amountNum * 100, // paise
-        currency: "INR",
-        name: "Fundwise",
-        description: campaignTitle,
-        order_id: data.orderId,
-        prefill: { name: donorName, email: donorEmail },
-        theme: { color: "#16a34a" },
-        handler: (_response: RazorpayResponse) => {
-          // Payment captured — webhook will verify & update DB
-          // We just show success to the user here
-          setStep("success");
-        },
-        modal: {
-          ondismiss: () => {
-            // User closed the overlay without paying
-            setStep("form");
-          },
+      const stripe = window.Stripe(data.publishableKey);
+      stripeRef.current = stripe;
+
+      const elements = stripe.elements({
+        clientSecret: data.clientSecret,
+        appearance: {
+          theme: "stripe",
+          variables: { colorPrimary: "#16a34a", borderRadius: "12px" },
         },
       });
+      elementsRef.current = elements;
 
-      rzp.open();
-      // After opening, reset loading (overlay is visible)
-      setStep("form");
+      const paymentElement = elements.create("payment", {
+        layout: "tabs",
+        defaultValues: {
+          billingDetails: { name: donorName, email: donorEmail },
+        },
+      });
+      paymentElementRef.current = paymentElement;
+
+      setStep("stripe-elements");
+      setTimeout(() => paymentElement.mount("#stripe-payment-element"), 50);
     } catch (err) {
-      console.error("[DonateWidget]", err);
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
       setStep("error");
     }
   };
 
-  // ── Success screen ─────────────────────────────────────────────
+  // ── Step 2: confirm payment ───────────────────────────────────
+  const handleStripeConfirm = async () => {
+    if (!elementsRef.current || !stripeRef.current) return;
+    setStripeLoading(true);
+    setErrorMsg("");
+
+    try {
+      const { error: submitError } = await elementsRef.current.submit();
+      if (submitError) throw new Error(submitError.message);
+
+      const { error } = await stripeRef.current.confirmPayment({
+        elements: elementsRef.current,
+        redirect: "if_required",
+      });
+
+      if (error) throw new Error(error.message);
+      setStep("success");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Payment failed. Please try again.");
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
+  // ── Success ───────────────────────────────────────────────────
   if (step === "success") {
     return (
       <div className="text-center py-6 space-y-4">
@@ -151,8 +170,8 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
             Thank you, {donorName.split(" ")[0]}!
           </h3>
           <p className="text-sm text-stone-500">
-            Your donation of ₹{selectedAmount} is being processed. You&apos;ll
-            receive a confirmation email shortly.
+            Your donation of ${parseFloat(selectedAmount).toLocaleString()} is being processed.
+            You&apos;ll receive a confirmation email shortly.
           </p>
         </div>
         <button
@@ -162,6 +181,7 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
             setCustomAmount("");
             setDonorName("");
             setDonorEmail("");
+            setErrorMsg("");
           }}
           className="text-sm text-emerald-600 hover:text-emerald-700 font-medium underline underline-offset-2"
         >
@@ -171,23 +191,68 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
     );
   }
 
-  // ── Form screen ────────────────────────────────────────────────
+  // ── Stripe payment element ─────────────────────────────────────
+  if (step === "stripe-elements") {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-2 text-sm text-stone-500">
+          <button
+            onClick={() => {
+              paymentElementRef.current?.destroy();
+              setStep("form");
+            }}
+            className="text-emerald-600 hover:text-emerald-700 font-medium"
+          >
+            ← Back
+          </button>
+          <span>·</span>
+          <span>Donating ${parseFloat(selectedAmount).toLocaleString()} USD</span>
+        </div>
+
+        <div id="stripe-payment-element" className="min-h-[200px]" />
+
+        {errorMsg && (
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200">
+            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-red-700">{errorMsg}</p>
+          </div>
+        )}
+
+        <button
+          onClick={handleStripeConfirm}
+          disabled={stripeLoading}
+          className={cn(
+            "w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-sm",
+            stripeLoading
+              ? "bg-stone-100 text-stone-400 cursor-not-allowed"
+              : "bg-emerald-600 text-white hover:bg-emerald-700"
+          )}
+        >
+          {stripeLoading ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
+          ) : (
+            <><Heart className="w-4 h-4" /> Confirm Donation</>
+          )}
+        </button>
+      </div>
+    );
+  }
+
+  // ── Main form ─────────────────────────────────────────────────
   return (
     <div className="space-y-5">
+
       {/* Amount presets */}
       <div>
         <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide mb-2">
-          Select Amount
+          Select Amount (USD)
         </label>
         <div className="grid grid-cols-2 gap-2 mb-2">
-          {PRESET_AMOUNTS.map((preset) => (
+          {USD_PRESETS.map((preset) => (
             <button
               key={preset}
               type="button"
-              onClick={() => {
-                setAmount(String(preset));
-                setCustomAmount("");
-              }}
+              onClick={() => { setAmount(String(preset)); setCustomAmount(""); }}
               className={cn(
                 "py-2.5 rounded-xl border text-sm font-semibold transition-all",
                 amount === String(preset)
@@ -195,23 +260,19 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
                   : "bg-white border-stone-200 text-stone-700 hover:border-emerald-400 hover:text-emerald-700"
               )}
             >
-              ₹{preset.toLocaleString("en-IN")}
+              ${preset}
             </button>
           ))}
         </div>
-        {/* Custom amount */}
         <div className="relative">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-medium">
-            ₹
+            $
           </span>
           <input
             type="number"
             placeholder="Other amount"
             value={customAmount}
-            onChange={(e) => {
-              setCustomAmount(e.target.value);
-              setAmount("");
-            }}
+            onChange={(e) => { setCustomAmount(e.target.value); setAmount(""); }}
             min={1}
             className={cn(
               "w-full pl-8 pr-4 py-2.5 rounded-xl border text-sm font-medium transition-colors outline-none",
@@ -251,7 +312,7 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
         </div>
       </div>
 
-      {/* Error message */}
+      {/* Error */}
       {(step === "error" || errorMsg) && (
         <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200">
           <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -259,30 +320,30 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
         </div>
       )}
 
-      {/* Submit button */}
+      {/* Submit */}
       <button
-        onClick={handleDonate}
+        onClick={handleStripeInit}
         disabled={step === "loading" || !selectedAmount}
         className={cn(
           "w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-sm",
           step === "loading" || !selectedAmount
             ? "bg-stone-100 text-stone-400 cursor-not-allowed"
-            : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200 hover:shadow-md hover:shadow-emerald-200"
+            : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200 hover:shadow-md"
         )}
       >
         {step === "loading" ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Initializing...
-          </>
+          <><Loader2 className="w-4 h-4 animate-spin" /> Initializing...</>
         ) : (
           <>
             <Heart className="w-4 h-4" />
-            Donate
-            {selectedAmount && ` ₹${parseFloat(selectedAmount).toLocaleString("en-IN")}`}
+            Donate{selectedAmount && ` $${parseFloat(selectedAmount).toLocaleString()}`}
           </>
         )}
       </button>
+
+      <p className="text-center text-xs text-stone-400">
+        Secured by Stripe · 100% to campaign
+      </p>
     </div>
   );
 }

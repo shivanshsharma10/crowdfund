@@ -1,9 +1,7 @@
 // src/app/api/donate/checkout/route.ts
-// Creates a Razorpay order and a PENDING donation record atomically
-
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getRazorpayClient, rupeesToPaise } from "@/lib/razorpay";
+import { getStripeClient } from "@/lib/stripe";
 import { CampaignStatus } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
@@ -26,18 +24,14 @@ export async function POST(request: NextRequest) {
 
     const amountNum = parseFloat(String(amount));
     if (isNaN(amountNum) || amountNum < 1) {
-      return NextResponse.json(
-        { error: "amount must be at least ₹1" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "amount must be at least 1" }, { status: 400 });
     }
 
-    // Email basic validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail)) {
       return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
 
-    // ── Verify campaign exists and is ACTIVE ────────────────────
+    // ── Verify campaign ─────────────────────────────────────────
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       select: { id: true, status: true, title: true },
@@ -54,38 +48,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Create Razorpay order ───────────────────────────────────
-    const razorpay = getRazorpayClient();
-    const order = await razorpay.orders.create({
-      amount: rupeesToPaise(amountNum),
-      currency: "INR",
-      receipt: `donation_${campaignId.slice(-8)}_${Date.now()}`,
-      notes: {
+    // ── Stripe PaymentIntent ────────────────────────────────────
+    const stripe = getStripeClient();
+    const amountCents = Math.round(amountNum * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: "usd",
+      receipt_email: donorEmail.trim().toLowerCase(),
+      metadata: {
         campaignId,
         campaignTitle: campaign.title,
-        donorEmail,
-        donorName,
+        donorName: donorName.trim(),
+        donorEmail: donorEmail.trim().toLowerCase(),
       },
+      description: `Donation to: ${campaign.title}`,
     });
 
-    // ── Persist a PENDING donation record ──────────────────────
-    const donation = await prisma.donation.create({
+    await prisma.donation.create({
       data: {
         amount: amountNum,
-        paymentId: order.id, // Store Razorpay order ID initially
+        paymentId: paymentIntent.id,
         donorName: donorName.trim(),
         donorEmail: donorEmail.trim().toLowerCase(),
         campaignId,
         status: "PENDING",
+        gateway: "STRIPE",
+        currency: "USD",
       },
     });
 
     return NextResponse.json({
-      orderId: order.id,
-      donationId: donation.id,
+      clientSecret: paymentIntent.client_secret,
       amount: amountNum,
-      currency: "INR",
-      keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      currency: "USD",
+      publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
     });
   } catch (error) {
     console.error("[POST /api/donate/checkout]", error);

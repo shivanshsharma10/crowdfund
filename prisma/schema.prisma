@@ -29,6 +29,10 @@ enum DonationStatus {
   FAILED
 }
 
+enum PaymentGateway {
+  STRIPE
+}
+
 // ─── Models ───────────────────────────────────────────────────
 
 model User {
@@ -64,17 +68,19 @@ model Campaign {
 }
 
 model Donation {
-  id          String         @id @default(cuid())
-  amount      Decimal        @db.Decimal(10, 2)
-  /// Razorpay order ID stored initially; updated to payment ID on capture
-  paymentId   String         @unique
-  status      DonationStatus @default(PENDING)
+  id          String          @id @default(cuid())
+  amount      Decimal         @db.Decimal(10, 2)
+  /// Stripe PaymentIntent ID
+  paymentId   String          @unique
+  status      DonationStatus  @default(PENDING)
+  gateway     PaymentGateway  @default(STRIPE)
+  currency    String
   donorEmail  String
   donorName   String
   campaignId  String
-  createdAt   DateTime       @default(now())
+  createdAt   DateTime        @default(now())
 
-  campaign    Campaign       @relation(fields: [campaignId], references: [id])
+  campaign    Campaign        @relation(fields: [campaignId], references: [id])
 
   @@index([campaignId])
   @@index([paymentId])
