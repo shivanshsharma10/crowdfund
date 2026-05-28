@@ -1,6 +1,5 @@
 // src/middleware.ts
-// Edge Middleware — protects all /admin/* routes except /admin/login
-
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
@@ -8,63 +7,70 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET ?? "fallback_dev_secret_change_in_production"
 );
 
-const PUBLIC_ADMIN_PATHS = ["/admin/login"];
+const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
+const isPublicAdminRoute = createRouteMatcher(["/admin/login"]);
 
-export async function middleware(request: NextRequest) {
+export default clerkMiddleware(async (auth, request: NextRequest) => {
   const { pathname } = request.nextUrl;
 
-  // Only intercept /admin/* routes
-  if (!pathname.startsWith("/admin")) {
-    return NextResponse.next();
-  }
+  // ── Admin routes: use existing JWT auth (unchanged) ───────────
+  if (isAdminRoute(request)) {
+    if (isPublicAdminRoute(request)) return NextResponse.next();
 
-  // Allow public admin paths (login page) through without auth
-  if (PUBLIC_ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
+    const token =
+      request.cookies.get("admin_token")?.value ??
+      request.headers.get("authorization")?.replace("Bearer ", "");
 
-  // ── Token extraction ─────────────────────────────────────────
-  const token =
-    request.cookies.get("admin_token")?.value ??
-    request.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token) return redirectToAdminLogin(request);
 
-  if (!token) {
-    return redirectToLogin(request);
-  }
+    try {
+      const { payload } = await jwtVerify(token, JWT_SECRET, {
+        algorithms: ["HS256"],
+      });
+      if (payload.role !== "ADMIN") return redirectToAdminLogin(request);
 
-  // ── Token verification ───────────────────────────────────────
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET, {
-      algorithms: ["HS256"],
-    });
-
-    // Enforce ADMIN role
-    if (payload.role !== "ADMIN") {
-      return redirectToLogin(request);
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-user-id", String(payload.sub ?? ""));
+      requestHeaders.set("x-user-email", String(payload.email ?? ""));
+      requestHeaders.set("x-user-role", String(payload.role ?? ""));
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    } catch {
+      const response = redirectToAdminLogin(request);
+      response.cookies.delete("admin_token");
+      return response;
     }
-
-    // Attach identity headers for downstream route handlers
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-user-id", String(payload.sub ?? ""));
-    requestHeaders.set("x-user-email", String(payload.email ?? ""));
-    requestHeaders.set("x-user-role", String(payload.role ?? ""));
-
-    return NextResponse.next({ request: { headers: requestHeaders } });
-  } catch {
-    // Expired, malformed, or tampered token
-    const response = redirectToLogin(request);
-    response.cookies.delete("admin_token");
-    return response;
   }
-}
 
-function redirectToLogin(request: NextRequest): NextResponse {
+  // ── Donate API: require Clerk auth ────────────────────────────
+  if (pathname.startsWith("/api/donate/checkout")) {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+  }
+
+  // ── Dashboard: require Clerk auth ─────────────────────────────
+  if (pathname.startsWith("/dashboard")) {
+    const { userId } = await auth();
+    if (!userId) {
+      const signInUrl = new URL("/sign-in", request.url);
+      signInUrl.searchParams.set("redirect_url", request.url);
+      return NextResponse.redirect(signInUrl);
+    }
+  }
+
+  return NextResponse.next();
+});
+
+function redirectToAdminLogin(request: NextRequest): NextResponse {
   const loginUrl = new URL("/admin/login", request.url);
   loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
   return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
-  // Match all /admin routes; exclude static assets and API internals
-  matcher: ["/admin/:path*"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
 };

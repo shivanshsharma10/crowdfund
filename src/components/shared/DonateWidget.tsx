@@ -1,15 +1,9 @@
 "use client";
 // src/components/shared/DonateWidget.tsx
-
+import { useUser, SignInButton } from "@clerk/nextjs";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Heart, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-declare global {
-  interface Window {
-    Stripe: (key: string) => StripeInstance;
-  }
-}
 
 interface StripeInstance {
   elements(options: object): StripeElements;
@@ -24,6 +18,10 @@ interface StripeElement {
   destroy(): void;
 }
 
+// Extend window with Stripe loader (avoids conflict with @stripe/stripe-js types)
+type StripeLoader = (key: string) => StripeInstance;
+declare const Stripe: StripeLoader | undefined;
+
 type Step = "form" | "stripe-elements" | "loading" | "success" | "error";
 
 const USD_PRESETS = [5, 10, 25, 50];
@@ -34,6 +32,8 @@ interface DonateWidgetProps {
 }
 
 export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
+  const { user, isSignedIn } = useUser();
+
   const [step, setStep] = useState<Step>("form");
   const [amount, setAmount] = useState("");
   const [customAmount, setCustomAmount] = useState("");
@@ -46,7 +46,13 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
   const elementsRef = useRef<StripeElements | null>(null);
   const paymentElementRef = useRef<StripeElement | null>(null);
 
-  const selectedAmount = amount || customAmount;
+  // Pre-fill from Clerk user when signed in
+  useEffect(() => {
+    if (user) {
+      setDonorName(user.fullName ?? "");
+      setDonorEmail(user.primaryEmailAddress?.emailAddress ?? "");
+    }
+  }, [user]);
 
   useEffect(() => {
     return () => {
@@ -55,9 +61,11 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
     };
   }, []);
 
+  const selectedAmount = amount || customAmount;
+
   const loadStripe = useCallback((): Promise<void> => {
     return new Promise((resolve, reject) => {
-      if (typeof window.Stripe === "function") return resolve();
+      if (typeof window !== 'undefined' && 'Stripe' in window) return resolve();
       const script = document.createElement("script");
       script.src = "https://js.stripe.com/v3/";
       script.onload = () => resolve();
@@ -83,7 +91,6 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
     return true;
   };
 
-  // ── Step 1: create PaymentIntent, mount Stripe Element ────────
   const handleStripeInit = async () => {
     if (!validate()) return;
     setErrorMsg("");
@@ -106,7 +113,7 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to initialize payment");
 
-      const stripe = window.Stripe(data.publishableKey);
+      const stripe = (window as unknown as { Stripe: StripeLoader }).Stripe(data.publishableKey);
       stripeRef.current = stripe;
 
       const elements = stripe.elements({
@@ -141,7 +148,6 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
     }
   };
 
-  // ── Step 2: confirm payment ───────────────────────────────────
   const handleStripeConfirm = async () => {
     if (!elementsRef.current || !stripeRef.current) return;
     setStripeLoading(true);
@@ -165,6 +171,29 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
     }
   };
 
+  // ── Auth gate ─────────────────────────────────────────────────
+  if (!isSignedIn) {
+    return (
+      <div className="text-center py-6 space-y-4">
+        <div className="w-12 h-12 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center mx-auto">
+          <Heart className="w-6 h-6 text-emerald-600" />
+        </div>
+        <div>
+          <p className="font-medium text-stone-900 mb-1">Sign in to donate</p>
+          <p className="text-sm text-stone-500">
+            Create an account to support this campaign and track your donations.
+          </p>
+        </div>
+        <SignInButton mode="modal">
+          <button className="w-full py-3.5 rounded-xl font-semibold text-sm bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
+            <Heart className="w-4 h-4" />
+            Sign In to Donate
+          </button>
+        </SignInButton>
+      </div>
+    );
+  }
+
   // ── Success ───────────────────────────────────────────────────
   if (step === "success") {
     return (
@@ -186,8 +215,6 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
             setStep("form");
             setAmount("");
             setCustomAmount("");
-            setDonorName("");
-            setDonorEmail("");
             setErrorMsg("");
           }}
           className="text-sm text-emerald-600 hover:text-emerald-700 font-medium underline underline-offset-2"
@@ -248,8 +275,6 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
   // ── Main form ─────────────────────────────────────────────────
   return (
     <div className="space-y-5">
-
-      {/* Amount presets */}
       <div>
         <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide mb-2">
           Select Amount (USD)
@@ -272,9 +297,7 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
           ))}
         </div>
         <div className="relative">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-medium">
-            $
-          </span>
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-medium">$</span>
           <input
             type="number"
             placeholder="Other amount"
@@ -291,7 +314,6 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
         </div>
       </div>
 
-      {/* Donor info */}
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide mb-1.5">
@@ -319,7 +341,6 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
         </div>
       </div>
 
-      {/* Error */}
       {(step === "error" || errorMsg) && (
         <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200">
           <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -327,7 +348,6 @@ export function DonateWidget({ campaignId, campaignTitle }: DonateWidgetProps) {
         </div>
       )}
 
-      {/* Submit */}
       <button
         onClick={handleStripeInit}
         disabled={step === "loading" || !selectedAmount}

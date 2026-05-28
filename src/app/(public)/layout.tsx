@@ -1,13 +1,20 @@
 // src/app/(public)/layout.tsx
-
+import { Show, UserButton, SignInButton, useAuth } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { Heart } from "lucide-react";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
-}) {
+}) 
+
+
+{
+  
+  const { userId } = await auth();
+  
   return (
     <div className="min-h-screen flex flex-col">
       {/* ── Navigation ──────────────────────────────────────────── */}
@@ -35,6 +42,20 @@ export default function PublicLayout({
             >
               How It Works
             </Link>
+            {userId ? (
+        <>
+          <Link href="/dashboard" className="text-sm text-stone-600 hover:text-stone-900 font-medium">
+            My Donations
+          </Link>
+          <UserButton />
+        </>
+      ) : (
+        <SignInButton mode="modal">
+          <button className="text-sm font-semibold px-4 py-2 rounded-lg bg-emerald-600 text-white">
+            Sign In
+          </button>
+        </SignInButton>
+      )}
           </div>
         </nav>
       </header>

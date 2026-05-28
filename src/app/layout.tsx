@@ -1,4 +1,6 @@
 // src/app/layout.tsx
+import { ClerkProvider } from "@clerk/nextjs";
+
 
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
@@ -34,11 +36,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
+  return ( <ClerkProvider>
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <body className="font-sans antialiased bg-stone-50 text-stone-900">
         {children}
       </body>
     </html>
+  </ClerkProvider>
   );
 }

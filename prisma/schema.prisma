@@ -77,6 +77,7 @@ model Donation {
   currency    String          @default("USD")
   donorEmail  String
   donorName   String
+  clerkUserId String?
   campaignId  String
   createdAt   DateTime        @default(now())
 
